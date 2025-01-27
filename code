@@ -1,0 +1,136 @@
+App.py
+import tkinter as tk
+from tkinter import messagebox
+
+def on_submit(): values = [] try:
+for entry in entries:
+value = int(entry.get()) values.append(value)
+predicted_value = sum(values) // len(values) # Simple average as a mock prediction prediction_label.config(text=f"Fuel efficiency is predicted to be: {predicted_value} MPG") messagebox.showinfo("Success", f"Values submitted successfully!\nPrediction: {predicted_value}
+MPG")
+except ValueError:
+messagebox.showerror("Invalid Input", "Please enter only integer values.")
+
+root = tk.Tk() root.title("Data Entry Form") root.geometry("600x600")
+
+root.columnconfigure(0, weight=1) root.columnconfigure(1, weight=1) root.columnconfigure(2, weight=1)
+
+# Labels and entries for each field
+fields = ["cylinders", "displacement", "horsepower", "weight", "acceleration", "model year", "origin"]
+entries = []
+for i, field in enumerate(fields):
+tk.Label(root, text=field, font=("Arial", 14)).grid(row=i, column=0, padx=5, pady=5, sticky="e") entry = tk.Entry(root, font=("Arial", 14))
+entry.grid(row=i, column=1, padx=5, pady=5, sticky="w") entries.append(entry)
+
+submit_button = tk.Button(root, text="Submit", command=on_submit, font=("Arial", 14)) submit_button.grid(row=len(fields), column=0, columnspan=2, pady=20)
+
+prediction_label = tk.Label(root, text="Fuel efficiency is 17.50MPH", font=("Arial", 14), fg="blue") prediction_label.grid(row=len(fields) + 1, column=0, columnspan=2, pady=10)
+
+root.mainloop()
+
+FuelEfficiencyTrain.py :
+
+# Importing necessary libraries import numpy as np
+import matplotlib.pyplot as plt import pandas as pd
+import seaborn as sns import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+
+# Loading the Dataset
+dataset_path = "./../dataset/auto-mpg.csv" raw_dataset = pd.read_csv(dataset_path) dataset = raw_dataset.copy()
+dataset = dataset.drop(["car name"], axis=1) dataset.head()
+
+# Cleaning and Removing unknown and missing data dataset = dataset.dropna()
+
+origin = dataset.pop('origin') dataset['USA'] = (origin == 1)*1.0 dataset['Europe'] = (origin == 2)*1.0 dataset['Japan'] = (origin == 3)*1.0 dataset.head()
+
+# Splitting dataset into Training and Testing train_dataset = dataset.sample(frac=0.8, random_state=0) test_dataset = dataset.drop(train_dataset.index)
+train_dataset = train_dataset.apply(pd.to_numeric, errors='coerce') test_dataset = test_dataset.apply(pd.to_numeric, errors='coerce')
+
+# Data Visualization
+sns.pairplot(train_dataset[["mpg", "cylinders", "displacement", "weight"]], diag_kind="kde")
+
+# Overall Statistics
+train_stats = train_dataset.describe() train_stats.pop("mpg")
+train_stats = train_stats.transpose()
+
+train_labels = train_dataset.pop('mpg') test_labels = test_dataset.pop('mpg')
+
+# Normalize the Data def norm(x):
+return (x - train_stats['mean']) / train_stats['std'] normed_train_data = norm(train_dataset) normed_test_data = norm(test_dataset)
+
+# Model
+
+def build_model():
+model = keras.Sequential([ tf.keras.layers.Input(shape=(9,)), layers.Dense(64, activation="relu"), layers.Dense(64, activation="relu"), layers.Dense(1)
+])
+
+optimizer = tf.keras.optimizers.RMSprop(0.001)
+
+model.compile(loss='mean_squared_error', optimizer=optimizer, metrics=['mean_absolute_error', "mean_squared_error"])
+return model
+
+model = build_model()
+
+# Architecture of ANN Model model.summary()
+
+normed_train_data = np.nan_to_num(np.asarray(normed_train_data).astype(np.float32)) train_labels = np.nan_to_num(np.asarray(train_labels).astype(np.float32))
+EPOCHS = 1000
+history = model.fit(normed_train_data, train_labels, epochs=EPOCHS, validation_split=0.2) model.save("./../models/model")
+# After Training
+hist = pd.DataFrame(history.history) hist['epoch'] = history.epoch hist.tail()
+
+# Plotting Training History def plot_history(history):
+hist = pd.DataFrame(history.history) hist['epoch'] = history.epoch
+
+plt.figure() plt.xlabel('Epoch')
+plt.ylabel('Mean Abs Error [MPG]')
+plt.plot(hist['epoch'], hist['mean_absolute_error'], label='Train Error') plt.plot(hist['epoch'], hist['val_mean_absolute_error'], label='Val Error') plt.ylim([0, 5])
+plt.legend()
+
+plt.figure() plt.xlabel('Epoch')
+plt.ylabel('Mean Square Error [$MPG^2$]')
+plt.plot(hist['epoch'], hist['mean_squared_error'], label='Train Error') plt.plot(hist['epoch'], hist['val_mean_squared_error'], label='Val Error') plt.ylim([0, 20])
+plt.legend()
+
+plt.show()
+
+plot_history(history) # Evaluate the model
+model.evaluate(normed_train_data, train_labels)
+
+FuelEfficiencyTest.py:
+import numpy as np
+import matplotlib.pyplot as plt import tensorflow as tf
+from tensorflow.keras import models import pandas as pd
+from sklearn.model_selection import train_test_split
+
+# Load the trained model
+model = tf.keras.models.load_model("./../models/model")
+
+# Display model summary model.summary()
+
+# Load and preprocess the dataset dataset_path = "./../dataset/auto-mpg.csv" raw_dataset = pd.read_csv(dataset_path) dataset = raw_dataset.copy()
+dataset = dataset.drop(["car name"], axis=1)
+
+# Convert categorical 'origin' column to dummy variables origin = dataset.pop('origin')
+dataset['USA'] = (origin == 1) * 1.0 dataset['Europe'] = (origin == 2) * 1.0 dataset['Japan'] = (origin == 3) * 1.0
+
+# Split dataset into training and testing datasets train_dataset = dataset.sample(frac=0.8, random_state=0) test_dataset = dataset.drop(train_dataset.index)
+train_dataset = train_dataset.apply(pd.to_numeric, errors='coerce') test_dataset = test_dataset.apply(pd.to_numeric, errors='coerce')
+
+# Compute statistics of the test dataset test_stats = test_dataset.describe() test_stats.pop("mpg")
+test_stats = test_stats.transpose()
+
+# Extract labels and normalize the test data test_labels = test_dataset.pop('mpg')
+def norm(x):
+return (x - test_stats['mean']) / test_stats['std'] normed_test_data = norm(test_dataset)
+
+# Convert to NumPy arrays for processing
+normed_test_data = np.nan_to_num(np.asarray(normed_test_data).astype(np.float32)) test_labels = np.nan_to_num(np.asarray(test_labels).astype(np.float32))
+
+# Evaluate the model on the test data model.evaluate(normed_test_data, test_labels)
+
+# Make predictions
+predictions = model.predict(normed_test_data)
+
+# Display actual vs predicted values for the first 10 test samples for i in range(10):
+print("Actual Value:", test_labels[i], "Predicted Value:", predictions[i][0])
